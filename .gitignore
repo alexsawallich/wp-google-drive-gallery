@@ -3,3 +3,4 @@
 vendor
 vendor/*
 google-api-php-client-*
+data/*

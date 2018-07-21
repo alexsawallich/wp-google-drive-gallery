@@ -8,36 +8,88 @@ Version: 0.1
 Author URI: https://alex.tools
 */
 
+// require Googles PHP Client
+require_once __DIR__ . '/google-api-php-client-2.2.2/vendor/autoload.php';
+
 // register shortcode with wordpress
 add_shortcode('wp_google_drive_gallery', 'wpGoogleDriveGallery');
 
 // define shortcode callback
 function wpGoogleDriveGallery($attributes, $content = '', $shortcode = '')
 {
-    // check if source uri is set
-    if (false === isset($attributes['src'])) {
+    // check if source folder is set
+    if (false === isset($attributes['folder'])) {
         return '';
     }
 
-    // check if source uri is in correct format
-    $src = $attributes['src'];
-    if (false === filter_var($src, FILTER_VALIDATE_URL)) {
+    // get client
+    $client = getClient();
+
+    $service = new Google_Service_Drive($client);
+
+    // check if folder exists
+    try {
+        $folder = $service->files->get($attributes['folder']);
+        /* @var $folder Google_Service_Drive_DriveFile */
+    } catch (Google_Service_Exception $e) {
         return '';
     }
 
-    // check if source uri is from google drive
-    $srcParts = parse_url($src);
-    if (
-        $srcParts['scheme'] != 'https' ||
-        $srcParts['host'] != 'drive.google.com' ||
-        !preg_match('#^/drive/folders#', $srcParts['path'])
-    ) {
+    // get all files within folder
+    $filters = '\'' . $attributes['folder'] . '\' in parents';
+    $filters .= ' and (mimeType = \'image/jpeg\' or mimeType = \'image/png\' or mimeType = \'image/gif\')';
+    $files = $service->files->listFiles(['q' => $filters, 'pageSize' => 1000]);
+    /* @var $files Google_Service_Drive_FileList */
+
+    // are there any files?
+    if (0 >= count($files)) {
         return '';
     }
 
-    // get folder contents
+    $markup = '<table>';
+    foreach ($files->getFiles() as $file) { /* @var $file Google_Service_Drive_DriveFile */
+        $markup .= '<tr><td>' . $file->getName() . '</td><td>' . $file->getMimeType() . '</td></tr>';
 
+    }
 
-    echo '<pre>';print_r($attributes);echo'</pre>';exit;
+    return $markup . '</table>';
+}
 
+function getClient()
+{
+    $client = new Google_Client();
+    $client->setScopes(Google_Service_Drive::DRIVE);
+    $client->setAuthConfig(__DIR__ . '/data/credentials.json');
+    $client->setRedirectUri('http://blog.alexsawallich.de/abenteuer-schweden-2018/');
+
+    // Load previously authorized credentials from a file.
+    $credentialsPath = __DIR__ . '/data/token.json';
+    if (file_exists($credentialsPath)) {
+        $accessToken = json_decode(file_get_contents($credentialsPath), true);
+    } else {
+        // Request authorization from the user.
+        $authUrl = $client->createAuthUrl();
+        header('Location: ' . $authUrl);
+        printf("Open the following link in your browser:\n%s\n", $authUrl);
+        print 'Enter verification code: ';
+        $authCode = trim(fgets(STDIN));
+
+        // Exchange authorization code for an access token.
+        $accessToken = $client->fetchAccessTokenWithAuthCode($authCode);
+
+        // Store the credentials to disk.
+        if (!file_exists(dirname($credentialsPath))) {
+            mkdir(dirname($credentialsPath), 0700, true);
+        }
+        file_put_contents($credentialsPath, json_encode($accessToken));
+        printf("Credentials saved to %s\n", $credentialsPath);
+    }
+    $client->setAccessToken($accessToken);
+
+    // Refresh the token if it's expired.
+    if ($client->isAccessTokenExpired()) {
+        $client->fetchAccessTokenWithRefreshToken($client->getRefreshToken());
+        file_put_contents($credentialsPath, json_encode($client->getAccessToken()));
+    }
+    return $client;
 }
