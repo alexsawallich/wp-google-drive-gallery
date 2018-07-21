@@ -38,7 +38,8 @@ function wpGoogleDriveGallery($attributes, $content = '', $shortcode = '')
     // get all files within folder
     $filters = '\'' . $attributes['folder'] . '\' in parents';
     $filters .= ' and (mimeType = \'image/jpeg\' or mimeType = \'image/png\' or mimeType = \'image/gif\')';
-    $files = $service->files->listFiles(['q' => $filters, 'pageSize' => 1000]);
+    $fields = 'files(id,name,webViewLink,thumbnailLink)';
+    $files = $service->files->listFiles(['q' => $filters, 'pageSize' => 1000, 'fields' => $fields]);
     /* @var $files Google_Service_Drive_FileList */
 
     // are there any files?
@@ -48,8 +49,10 @@ function wpGoogleDriveGallery($attributes, $content = '', $shortcode = '')
 
     $markup = '<table>';
     foreach ($files->getFiles() as $file) { /* @var $file Google_Service_Drive_DriveFile */
-        $markup .= '<tr><td>' . $file->getName() . '</td><td>' . $file->getMimeType() . '</td></tr>';
-
+        $markup .= '<tr>
+            <td><a href="https://drive.google.com/uc?export=view&id=' . $file->getId() . '"><img src="' . $file->getThumbnailLink() . '" alt=""></a></td>
+            <td>' . $file->getName() . '</td>
+        </tr>';
     }
 
     return $markup . '</table>';
@@ -58,6 +61,8 @@ function wpGoogleDriveGallery($attributes, $content = '', $shortcode = '')
 function getClient()
 {
     $client = new Google_Client();
+    $client->setAccessType('offline');
+    $client->setApprovalPrompt('force');
     $client->setScopes(Google_Service_Drive::DRIVE);
     $client->setAuthConfig(__DIR__ . '/data/credentials.json');
     $client->setRedirectUri('http://blog.alexsawallich.de/abenteuer-schweden-2018/');
@@ -65,7 +70,7 @@ function getClient()
     // Load previously authorized credentials from a file.
     $credentialsPath = __DIR__ . '/data/token.json';
     if (file_exists($credentialsPath)) {
-        $accessToken = json_decode(file_get_contents($credentialsPath), true);
+        $accessToken = /*json_decode(*/file_get_contents($credentialsPath);//, true);
     } else {
         // Request authorization from the user.
         $authUrl = $client->createAuthUrl();
@@ -84,6 +89,8 @@ function getClient()
         file_put_contents($credentialsPath, json_encode($accessToken));
         printf("Credentials saved to %s\n", $credentialsPath);
     }
+    #echo '<pre>';print_r($accessToken);echo '</pre>';
+
     $client->setAccessToken($accessToken);
 
     // Refresh the token if it's expired.
