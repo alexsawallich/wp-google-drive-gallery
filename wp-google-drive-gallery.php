@@ -47,15 +47,36 @@ function wpGoogleDriveGallery($attributes, $content = '', $shortcode = '')
         return '';
     }
 
+    // settings of the shortcode
+    $useLazyLoad = (isset($attributes['lazy-load']) && (false == $attributes['lazy-load'] || 0 == $attributes['lazy-load'])) ? false : true;
+
     $markup = '<table>';
-    foreach ($files->getFiles() as $file) { /* @var $file Google_Service_Drive_DriveFile */
+    foreach ($files->getFiles() as $file) {
+        /* @var $file Google_Service_Drive_DriveFile */
         $markup .= '<tr>
-            <td><a href="https://drive.google.com/uc?export=view&id=' . $file->getId() . '"><img src="' . $file->getThumbnailLink() . '" alt=""></a></td>
+            <td><a href="https://drive.google.com/uc?export=view&id=' . $file->getId() . '">';
+
+        if (true === $useLazyLoad) {
+            $markup .= '<img data-original="' . $file->getThumbnailLink() . '" alt ="">';
+        } else {
+            $markup .= '<img src="' . $file->getThumbnailLink() . '" alt="">';
+        }
+
+        $markup .= '</a></td>
             <td>' . $file->getName() . '</td>
         </tr>';
     }
 
-    return $markup . '</table>';
+    $markup .= '</table>';
+
+    // include lazyload js if necessary
+    if (true === $useLazyLoad) {
+        $markup .= '<script type="text/javascript">(function($) { $(document).ready(function () { $(\'img[data-original]\').lazyload(); }) })(jQuery);</script>';
+        wp_enqueue_script('lazy-load', 'https://cdnjs.cloudflare.com/ajax/libs/jquery.lazyload/1.9.1/jquery.lazyload.min.js', false, false, true);
+    }
+
+    return $markup;
+
 }
 
 function getClient()
@@ -70,7 +91,7 @@ function getClient()
     // Load previously authorized credentials from a file.
     $credentialsPath = __DIR__ . '/data/token.json';
     if (file_exists($credentialsPath)) {
-        $accessToken = /*json_decode(*/file_get_contents($credentialsPath);//, true);
+        $accessToken = file_get_contents($credentialsPath);
     } else {
         // Request authorization from the user.
         $authUrl = $client->createAuthUrl();
