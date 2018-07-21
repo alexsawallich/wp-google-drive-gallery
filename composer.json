@@ -1,0 +1,10 @@
+{
+  "name": "alexsawallich/wp-google-drive-gallery",
+  "type": "project",
+  "description": "Plugin for Wordpress to embed Google Drive Folders with images as gallery in a post or page.",
+  "keywords": ["google","wordpress","plugin"],
+  "homepage": "https://github.com/alexsawallich/wp-google-drive-gallery",
+  "require": {
+    "google/apiclient": "^2.0"
+  }
+}
